@@ -8,7 +8,9 @@ defmodule Samly.SpData do
   defstruct id: "",
             entity_id: "",
             certfile: "",
+            cert_inline: "",
             keyfile: "",
+            key_inline: "",
             contact_name: "",
             contact_email: "",
             org_name: "",
@@ -22,7 +24,9 @@ defmodule Samly.SpData do
           id: binary(),
           entity_id: binary(),
           certfile: binary(),
+          cert_inline: binary(),
           keyfile: binary(),
+          key_inline: binary(),
           contact_name: binary(),
           contact_email: binary(),
           org_name: binary(),
@@ -56,7 +60,9 @@ defmodule Samly.SpData do
       id: Map.get(opts_map, :id, ""),
       entity_id: Map.get(opts_map, :entity_id, ""),
       certfile: Map.get(opts_map, :certfile, ""),
+      cert_inline: Map.get(opts_map, :certificate, ""),
       keyfile: Map.get(opts_map, :keyfile, ""),
+      key_inline: Map.get(opts_map, :key, ""),
       contact_name: Map.get(opts_map, :contact_name, @default_contact_name),
       contact_email: Map.get(opts_map, :contact_email, @default_contact_email),
       org_name: Map.get(opts_map, :org_name, @default_org_name),
@@ -80,8 +86,23 @@ defmodule Samly.SpData do
   end
 
   @spec load_cert(%SpData{}, map()) :: %SpData{}
-  defp load_cert(%SpData{certfile: ""} = sp_data, _) do
+  defp load_cert(%SpData{certfile: "", cert_inline: ""} = sp_data, _) do
     %SpData{sp_data | cert: :undefined}
+  end
+
+  defp load_cert(%SpData{id: id, cert_inline: certificate} = sp_data, opts_map)
+       when byte_size(certificate) > 0 do
+    try do
+      cert = :esaml_util.import_certificate(certificate, id)
+      %SpData{sp_data | cert: cert}
+    rescue
+      _error ->
+        Logger.error(
+          "[Samly] Failed to decode certificate [#{inspect(certificate)}]: #{inspect(opts_map)}"
+        )
+
+        %SpData{sp_data | cert: :undefined, valid?: false}
+    end
   end
 
   defp load_cert(%SpData{certfile: certfile} = sp_data, %{} = opts_map) do
@@ -94,13 +115,25 @@ defmodule Samly.SpData do
           "[Samly] Failed load SP certfile [#{inspect(certfile)}]: #{inspect(opts_map)}"
         )
 
-        %SpData{sp_data | valid?: false}
+        %SpData{sp_data | cert: :undefined, valid?: false}
     end
   end
 
   @spec load_key(%SpData{}, map()) :: %SpData{}
-  defp load_key(%SpData{keyfile: ""} = sp_data, _) do
+  defp load_key(%SpData{keyfile: "", key_inline: ""} = sp_data, _) do
     %SpData{sp_data | key: :undefined}
+  end
+
+  defp load_key(%SpData{id: id, key_inline: key} = sp_data, %{} = opts_map)
+       when byte_size(key) > 0 do
+    try do
+      key = :esaml_util.import_private_key(key, id)
+      %SpData{sp_data | key: key}
+    rescue
+      _error ->
+        Logger.error("[Samly] Failed to decode key [#{inspect(key)}]: #{inspect(opts_map)}")
+        %SpData{sp_data | key: :undefined, valid?: false}
+    end
   end
 
   defp load_key(%SpData{keyfile: keyfile} = sp_data, %{} = opts_map) do
