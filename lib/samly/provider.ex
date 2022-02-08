@@ -57,6 +57,12 @@ defmodule Samly.Provider do
 
     Application.put_env(:samly, :idp_id_from, idp_id_from)
 
+    refresh_providers()
+  end
+
+  def refresh_providers do
+    opts = Application.get_env(:samly, Samly.Provider, [])
+
     service_providers = Samly.SpData.load_providers(opts[:service_providers] || [])
 
     identity_providers =
