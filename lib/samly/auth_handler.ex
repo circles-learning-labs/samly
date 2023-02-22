@@ -3,7 +3,7 @@ defmodule Samly.AuthHandler do
 
   require Logger
   import Plug.Conn
-  alias Samly.{Assertion, IdpData, Helper, State, Subject}
+  alias Samly.{Assertion, IdpData, Helper, State, Subject, Trace}
 
   import Samly.RouterUtil, only: [ensure_sp_uris_set: 2, send_saml_request: 5, redirect: 3]
 
@@ -71,6 +71,8 @@ defmodule Samly.AuthHandler do
 
         {idp_signin_url, req_xml_frag} =
           Helper.gen_idp_signin_req(sp, idp_rec, Map.get(idp, :nameid_format))
+
+        Trace.handle("SAML signin request", xml: req_xml_frag)
 
         conn
         |> configure_session(renew: true)
