@@ -2,7 +2,7 @@ defmodule Samly.Helper do
   @moduledoc false
 
   require Samly.Esaml
-  alias Samly.{Assertion, Esaml, IdpData}
+  alias Samly.{Assertion, Esaml, IdpData, Trace}
 
   @spec get_idp(binary) :: nil | IdpData.t()
   def get_idp(idp_id) do
@@ -68,12 +68,19 @@ defmodule Samly.Helper do
   end
 
   def decode_idp_auth_resp(sp, saml_encoding, saml_response) do
-    with {:ok, xml_frag} <- decode_saml_payload(saml_encoding, saml_response),
-         {:ok, assertion_rec} <- :esaml_sp.validate_assertion(xml_frag, sp) do
-      {:ok, Assertion.from_rec(assertion_rec)}
-    else
-      {:error, reason} -> {:error, reason}
-      error -> {:error, {:invalid_request, "#{inspect(error)}"}}
+    case decode_saml_payload(saml_encoding, saml_response) do
+      {:ok, xml_frag} ->
+        case :esaml_sp.validate_assertion(xml_frag, sp) do
+          {:ok, assertion_rec} ->
+            {:ok, Assertion.from_rec(assertion_rec)}
+
+          {:error, reason} ->
+            Trace.handle("SAML assertion validation failed", error: reason, xml: xml_frag)
+            {:error, reason}
+        end
+
+      error ->
+        {:error, {:invalid_request, "#{inspect(error)}"}}
     end
   end
 
@@ -113,7 +120,14 @@ defmodule Samly.Helper do
       xml = :esaml_binding.decode_response(saml_encoding, saml_payload)
       {:ok, xml}
     rescue
-      error -> {:error, {:invalid_response, "#{inspect(error)}"}}
+      error ->
+        Trace.handle("SAML response payload decode failed",
+          error: error,
+          encoding: saml_encoding,
+          xml: saml_payload
+        )
+
+        {:error, {:invalid_response, "#{inspect(error)}"}}
     end
   end
 end

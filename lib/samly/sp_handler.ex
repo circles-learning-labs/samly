@@ -5,7 +5,7 @@ defmodule Samly.SPHandler do
   import Plug.Conn
   alias Plug.Conn
   require Samly.Esaml
-  alias Samly.{Assertion, Esaml, Helper, IdpData, State, Subject}
+  alias Samly.{Assertion, Esaml, Helper, IdpData, State, Subject, Trace}
 
   import Samly.RouterUtil, only: [ensure_sp_uris_set: 2, send_saml_request: 5, redirect: 3]
 
@@ -47,6 +47,8 @@ defmodule Samly.SPHandler do
       assertion_key = {idp_id, nameid}
       conn = State.put_assertion(conn, assertion_key, assertion)
       target_url = auth_target_url(conn, assertion, relay_state)
+
+      Trace.handle("SAML signin response", target_url: target_url, assertion: assertion)
 
       conn
       |> configure_session(renew: true)
